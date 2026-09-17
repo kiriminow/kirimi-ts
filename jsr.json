@@ -1,5 +1,5 @@
 {
-  "name": "@kirimi/sdk",
+  "name": "@kiriminow/sdk",
   "version": "0.1.0",
   "license": "MIT",
   "exports": "./src/mod.ts",

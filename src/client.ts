@@ -47,7 +47,7 @@ function compact(body: Record<string, unknown>): Record<string, unknown> {
  *
  * @example
  * ```ts
- * import { KirimiClient } from '@kirimi/sdk';
+ * import { KirimiClient } from '@kiriminow/sdk';
  *
  * const client = new KirimiClient({ userCode: 'USER', secret: 'SECRET' });
  * const resp = await client.sendMessage({ deviceId: 'DEV', receiver: '628xxx', message: 'halo' });

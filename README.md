@@ -1,7 +1,7 @@
-# @kirimi/sdk
+# @kiriminow/sdk
 
-[![JSR](https://jsr.io/badges/@kirimi/sdk)](https://jsr.io/@kirimi/sdk)
-[![npm](https://img.shields.io/npm/v/@kirimi/sdk)](https://www.npmjs.com/package/@kirimi/sdk)
+[![JSR](https://jsr.io/badges/@kiriminow/sdk)](https://jsr.io/@kiriminow/sdk)
+[![npm](https://img.shields.io/npm/v/@kiriminow/sdk)](https://www.npmjs.com/package/@kiriminow/sdk)
 
 TypeScript SDK for the [Kirimi](https://kirimi.id) WhatsApp API.
 
@@ -15,28 +15,28 @@ TypeScript SDK for the [Kirimi](https://kirimi.id) WhatsApp API.
 
 **Deno (JSR)**
 ```sh
-deno add jsr:@kirimi/sdk
+deno add jsr:@kiriminow/sdk
 ```
 
 **Node.js (JSR)**
 ```sh
-npx jsr add @kirimi/sdk
+npx jsr add @kiriminow/sdk
 ```
 
 **Bun (JSR)**
 ```sh
-bunx jsr add @kirimi/sdk
+bunx jsr add @kiriminow/sdk
 ```
 
 **npm**
 ```sh
-npm install @kirimi/sdk
+npm install @kiriminow/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { KirimiClient } from '@kirimi/sdk';
+import { KirimiClient } from '@kiriminow/sdk';
 
 const client = new KirimiClient({
   userCode: 'YOUR_USER_CODE',
@@ -227,7 +227,7 @@ Payment links are valid 24 hours; a maximum of 2 unpaid deposits may exist at on
 ## Error Handling
 
 ```typescript
-import { KirimiClient, KirimiApiError, KirimiTimeoutError, KirimiError } from '@kirimi/sdk';
+import { KirimiClient, KirimiApiError, KirimiTimeoutError, KirimiError } from '@kiriminow/sdk';
 
 try {
   await client.sendMessage({ deviceId, receiver, message });
@@ -258,7 +258,7 @@ try {
 ## Usage in Cloudflare Workers / Edge Runtimes
 
 ```typescript
-import { KirimiClient } from '@kirimi/sdk';
+import { KirimiClient } from '@kiriminow/sdk';
 
 export default {
   async fetch(request: Request): Promise<Response> {
