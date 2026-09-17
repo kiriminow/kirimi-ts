@@ -45,7 +45,7 @@ const client = new KirimiClient({
 
 const resp = await client.sendMessage({
   deviceId: 'YOUR_DEVICE_ID',
-  phone: '628111222333',
+  receiver: '628111222333',
   message: 'Halo dari Kirimi SDK!',
 });
 
@@ -64,9 +64,9 @@ const client = new KirimiClient({
 });
 ```
 
-## Methods
+Auth travels in the request body (`user_code` + `secret`), never in a header. Every method
+returns `Promise<KirimiResponse<T>>`:
 
-All methods return `Promise<KirimiResponse<T>>`:
 ```typescript
 interface KirimiResponse<T = unknown> {
   success: boolean;
@@ -75,41 +75,77 @@ interface KirimiResponse<T = unknown> {
 }
 ```
 
-### WhatsApp Unofficial
+## Two send paths, don't mix them
 
-#### `sendMessage`
+- **QR Scan device** — unofficial, free-form text any time, supports groups. Can drop.
+- **WABA (Meta Cloud API)** — official, stable. Business-initiated messages must use an
+  approved template. Free-form replies only inside the 24h customer service window
+  (`wabaReply`). No group support. Uses `wabaId`, never `deviceId`.
+
+> For WABA, a success response means Meta **accepted** the message (`delivery_status:
+> "accepted"`), not that it was delivered. The final state arrives via webhook as
+> `message.sent`, `message.ack`, `message.failed`.
+
+## Methods
+
+### WhatsApp (QR device)
+
 ```typescript
-await client.sendMessage({ deviceId, phone, message, mediaUrl? });
+await client.sendMessage({ deviceId, receiver, message, mediaUrl?, fileName?,
+  enableTypingEffect?, typingSpeedMs?, quotedMessageId? });
+
+await client.sendMessageFast({ deviceId, receiver, message, mediaUrl?, fileName?, quotedMessageId? });
+
+await client.sendMessageFile({ deviceId, receiver, file, fileName?, message?, caption?, quotedMessageId? });
+
+await client.broadcastMessage({ deviceId, label, numbers: [...], message,
+  delay?, delayMin?, delayMax?, mediaUrl?, fileName?, startedAt? });
 ```
 
-#### `sendMessageFast`
-Kirim tanpa efek mengetik:
+`sendMessageFile` accepts `Blob`, `File`, or `Uint8Array` (max 50 MB).
+`broadcastMessage` takes `numbers` as an **array** (max 1000) and requires `label`.
+The server clamps `delay` to 30–3600 seconds.
+
+### WABA (Cloud API)
+
 ```typescript
-await client.sendMessageFast({ deviceId, phone, message, mediaUrl? });
+await client.sendWabaMessage({ wabaId, to, templateName, variables?, header?, buttons? });
+
+await client.wabaReply({ wabaId, to, message });        // free text within 24h window
+await client.wabaConversations({ limit?, page? });      // numbers still in the window
+await client.wabaTemplatesSync({ wabaId });             // refresh template status from Meta
+await client.wabaSendOtp({ wabaId, to, templateName });
+await client.wabaVerifyOtp({ wabaId, to, otpCode });
 ```
 
-#### `sendMessageFile`
-Upload file langsung (max 50 MB). Terima `Blob`, `File`, atau `Uint8Array`:
-```typescript
-const file = await Deno.readFile('./doc.pdf'); // Uint8Array
-await client.sendMessageFile({ deviceId, phone, file, fileName: 'doc.pdf', message? });
+Reply `message` shapes:
 
-// atau dengan File/Blob
-const blob = new Blob(['hello'], { type: 'text/plain' });
-await client.sendMessageFile({ deviceId, phone, file: blob, fileName: 'hello.txt' });
+```typescript
+{ type: 'text', text: 'Halo' }
+{ type: 'image', media_url: 'https://…', caption: 'Brosur' }   // also audio/video
+{ type: 'document', media_url: 'https://…', filename: 'a.pdf' }
+{ type: 'interactive', interactive: { /* Meta interactive object */ } }
 ```
 
-### WABA
+Template `header` (required for media or dynamic text headers):
 
-#### `sendWabaMessage`
 ```typescript
-await client.sendWabaMessage({ deviceId, phone, message });
+await client.sendWabaMessage({
+  wabaId: '1000000000',
+  to: '628111222333',
+  templateName: 'order_update',
+  variables: ['Budi', 'INV-001'],
+  header: { type: 'document', link: 'https://cdn.example.com/invoice.pdf', filename: 'invoice.pdf' },
+});
 ```
 
 ### Devices
 
 ```typescript
-await client.listDevices();
+await client.createDevice({ packageId, voucherCode? });
+await client.connectDevice({ deviceId });
+await client.renewDevice({ deviceId, packageId, voucherCode? });
+await client.listDevices({ page?, limit? });
 await client.deviceStatus({ deviceId });
 await client.deviceStatusEnhanced({ deviceId });
 ```
@@ -123,52 +159,70 @@ await client.userInfo();
 ### Contacts
 
 ```typescript
-await client.saveContact({ phone, name?, email? });
+await client.saveContact({ nama, nomor, deviceId? });
+await client.saveContactsBulk({ contacts: [{ nama, nomor }], deviceId? }); // max 1000
 ```
 
-### OTP
+Existing numbers are skipped, not overwritten.
 
-#### Generate & validate (V1)
+### OTP v2 (recommended)
+
+`method` is one of `whatsapp` (alias `waba`), `device`, or `waba_user`.
+
 ```typescript
-await client.generateOtp({
-  deviceId, phone,
-  otpLength?: 6,
-  otpType?: 'numeric' | 'alphabetic' | 'alphanumeric',
-  customOtpMessage?: 'Kode OTP kamu: {otp}',
-});
+// Via the official Kirimi provider — Rp 595 per delivered OTP, no own number needed
+await client.sendOtpV2({ phone, method: 'whatsapp', appName: 'MyApp' });
 
-await client.validateOtp({ deviceId, phone, otp: '123456' });
-```
+// Via your own connected device — free
+await client.sendOtpV2({ phone, method: 'device', deviceId,
+  customMessage: 'Kode OTP kamu: {{otp}}' });
 
-#### Send & verify (V2)
-```typescript
-await client.sendOtpV2({
-  phone, deviceId,
-  method?: 'device' | 'waba',
-  appName?, templateCode?, customMessage?,
-});
+// Via your own WABA + AUTHENTICATION template — free, Meta bills your WABA
+await client.sendOtpV2({ phone, method: 'waba_user', wabaId, templateName: 'otp_login' });
 
 await client.verifyOtpV2({ phone, otpCode: '123456' });
 ```
 
-### Broadcast
+`customMessage` must contain `{{otp}}` and be 10–500 characters.
 
-`phones` bisa string atau array — array di-join dengan `,`:
+### OTP v1 (legacy)
+
 ```typescript
-await client.broadcastMessage({
-  deviceId,
-  phones: ['628111', '628222'],
-  message: 'Promo!',
-  delay?: 3, // detik antar pesan
+await client.generateOtp({ deviceId, phone, otpLength?, otpType?, customOtpText?,
+  customOtpMessage?, enableTypingEffect?, typingSpeedMs? });
+await client.validateOtp({ deviceId, phone, otp });
+```
+
+`otpType` is `'numeric' | 'alphabetic' | 'alphanumeric'`. `customOtpMessage` must contain
+the `{otp}` placeholder (single braces).
+
+### OTP Reverse (customer-initiated)
+
+```typescript
+const { data } = await client.otpReverseCreate({
+  phone, deviceId, appName?, callbackUrl?,
+  customMessage: 'VERIFY {{token}} {{phone}}',
 });
+// Send data.message_text to the customer; they reply with it to your device.
+
+await client.otpReverseStatus({ token });
 ```
 
-### Deposits
+Status is `pending` | `verified` | `phone_mismatch` | `expired`. The token is valid
+10 minutes and single use. When verification completes, Kirimi POSTs to `callbackUrl`
+with the header `x-kirimi-event: otp-reverse.verified`.
+
+### Packages & Deposits
 
 ```typescript
-await client.listDeposits({ status?: 'paid' | 'unpaid' | 'expired' | '' });
 await client.listPackages();
+await client.createDeposit({ nominal });        // min 100 IDR
+await client.depositStatus({ ref });
+await client.cancelDeposit({ ref });            // must still be unpaid
+await client.listDeposits({ page?, limit?, status? });
 ```
+
+Payment links are valid 24 hours; a maximum of 2 unpaid deposits may exist at once.
 
 ## Error Handling
 
@@ -176,7 +230,7 @@ await client.listPackages();
 import { KirimiClient, KirimiApiError, KirimiTimeoutError, KirimiError } from '@kirimi/sdk';
 
 try {
-  const resp = await client.sendMessage({ deviceId, phone, message });
+  await client.sendMessage({ deviceId, receiver, message });
 } catch (err) {
   if (err instanceof KirimiApiError) {
     console.error(`API error ${err.statusCode}:`, err.message);
@@ -189,12 +243,21 @@ try {
 }
 ```
 
+| Status | Meaning |
+|---|---|
+| 400 | invalid or missing params |
+| 401 | wrong `user_code` / `secret` |
+| 402 | insufficient balance (`sendOtpV2` whatsapp) |
+| 403 | feature not in package / subscription inactive |
+| 404 | not found |
+| 429 | rate limited |
+| 500 | server error |
+| 502 | number undeliverable |
+| 503 | provider outage |
+
 ## Usage in Cloudflare Workers / Edge Runtimes
 
-SDK menggunakan native `fetch` — langsung kompatibel tanpa konfigurasi tambahan:
-
 ```typescript
-// worker.ts
 import { KirimiClient } from '@kirimi/sdk';
 
 export default {
@@ -206,7 +269,7 @@ export default {
 
     const resp = await client.sendMessage({
       deviceId: env.KIRIMI_DEVICE_ID,
-      phone: '628111222333',
+      receiver: '628111222333',
       message: 'Hello from the edge!',
     });
 
@@ -217,7 +280,7 @@ export default {
 
 ## Testing / Mocking
 
-Inject `fetch` di constructor untuk mocking:
+Inject `fetch` in the constructor to mock:
 
 ```typescript
 const client = new KirimiClient({
