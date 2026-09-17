@@ -1,4 +1,12 @@
 {
+  "name": "@kiriminow/sdk",
+  "version": "0.1.0",
+  "license": "MIT",
+  "exports": "./src/mod.ts",
+  "publish": {
+    "include": ["src/", "README.md", "LICENSE", "deno.json"],
+    "exclude": ["**/*_test.ts", "tests/"]
+  },
   "tasks": {
     "test": "deno test --allow-net tests/",
     "fmt": "deno fmt src/ tests/",

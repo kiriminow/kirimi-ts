@@ -27,9 +27,9 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME#v}"
           pkg="$(node -p "require('./package.json').version")"
-          jsr="$(node -p "require('./jsr.json').version")"
-          if [ "$tag" != "$pkg" ] || [ "$tag" != "$jsr" ]; then
-            echo "tag=$tag package.json=$pkg jsr.json=$jsr" >&2
+          deno="$(node -p "require('./deno.json').version")"
+          if [ "$tag" != "$pkg" ] || [ "$tag" != "$deno" ]; then
+            echo "tag=$tag package.json=$pkg deno.json=$deno" >&2
             exit 1
           fi
 
