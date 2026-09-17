@@ -1,0 +1,37 @@
+name: jsr
+
+# JSR recommends publishing on pushes to main rather than on tags: the CLI
+# skips the upload when deno.json's version is already published, so this is
+# safe to run on every push. Kept separate from the npm release workflow so a
+# JSR hiccup cannot block an npm release (and vice versa).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC token used to authenticate with JSR
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: verify deno.json matches package.json
+        run: |
+          pkg="$(node -p "require('./package.json').version")"
+          deno="$(node -p "require('./deno.json').version")"
+          name="$(node -p "require('./deno.json').name")"
+          if [ "$pkg" != "$deno" ]; then
+            echo "package.json=$pkg deno.json=$deno" >&2
+            exit 1
+          fi
+          echo "publishing $name@$deno"
+
+      - run: npx --yes jsr publish
